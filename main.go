@@ -237,7 +237,7 @@ func mainWithError() error {
 	out, err := session.CombinedOutput("echo " + mfiPowerValue + "  > /proc/power/output" + strconv.Itoa(*outletID))
 	if err != nil {
 		return fmt.Errorf("failed to change power value to %q (%s) for outlet id %d - %w - output: %q",
-			userValue, mfiPowerValue, err, *outletID, out)
+			userValue, mfiPowerValue, *outletID, err, out)
 	}
 
 	return nil
