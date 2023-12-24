@@ -9,7 +9,7 @@ mfi controls the power state of an Ubiquiti mFi Power outlet.
 ## Usage
 
 ```
-mfi -a <addr>:<port> -k <ssh-host-key> [options] <on|off>
+mfi -a <addr>:<port> -k <ssh-host-key> [options] <on|off|status>
 ```
 
 ## Examples
@@ -27,6 +27,12 @@ $ mfi -a 192.168.3.200:22 -k 'mfi ssh-rsa AAAAB3...' on
 
 ```
 $ mfi -a 192.168.3.200:22 -k 'mfi ssh-rsa AAAAB3...' off
+```
+
+#### Check outlet status:
+
+```
+$ mfi -a 192.168.3.200:22 -k 'mfi ssh-rsa AAAAB3...' status
 ```
 
 ## Installation

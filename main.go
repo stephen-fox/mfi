@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -28,7 +29,7 @@ const (
 	usage = appName + `
 
 SYNOPSIS
-  ` + appName + ` -` + addrArg + ` <addr>:<port> -` + hostKeyArg + ` <ssh-host-key> [options] <on|off>
+  ` + appName + ` -` + addrArg + ` <addr>:<port> -` + hostKeyArg + ` <ssh-host-key> [options] <on|off|status>
 
 DESCRIPTION
   ` + appName + ` controls the power state of an Ubiquiti mFi Power outlet.
@@ -50,6 +51,10 @@ EXAMPLES
   o Turn the outlet off:
 
     $ ` + appName + ` -` + addrArg + ` 192.168.3.200:22 -` + hostKeyArg + ` 'mfi ssh-rsa AAAAB3...' off
+
+  o Check outlet status:
+
+    $ ` + appName + ` -` + addrArg + ` 192.168.3.200:22 -` + hostKeyArg + ` 'mfi ssh-rsa AAAAB3...' status
 
 OPTIONS
 `
@@ -126,7 +131,7 @@ func mainWithError() error {
 	addrPort := flag.String(
 		addrArg,
 		"",
-		"The conection address in the format of `<addr>:<port>`")
+		"The connection address in the format of `<addr>:<port>`")
 
 	username := flag.String(
 		usernameArg,
@@ -148,6 +153,11 @@ func mainWithError() error {
 		outletIDArg,
 		1,
 		"The `ID` of the power outlet to control")
+
+	// This prevents the flag library from running flag.PrintDefaults
+	// when a flag parse error occurs
+	// This makes error messages much more readable for the user :)
+	flag.Usage = func() {}
 
 	flag.Parse()
 
@@ -178,6 +188,20 @@ func mainWithError() error {
 		// OK.
 	default:
 		return errors.New("please specify only one non-flag argument")
+	}
+
+	userValue := flag.Arg(0)
+	var shellCommand string
+
+	switch userValue {
+	case "on":
+		shellCommand = "echo 1 > /proc/power/output" + strconv.Itoa(*outletID)
+	case "off":
+		shellCommand = "echo 0 > /proc/power/output" + strconv.Itoa(*outletID)
+	case "status":
+		shellCommand = "cat /proc/power/output" + strconv.Itoa(*outletID)
+	default:
+		return fmt.Errorf("unsupported power value: %q", userValue)
 	}
 
 	hostKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(*hostKeyAKFormat))
@@ -222,22 +246,21 @@ func mainWithError() error {
 	}
 	defer session.Close()
 
-	userValue := flag.Arg(0)
-	var mfiPowerValue string
-
-	switch userValue {
-	case "on":
-		mfiPowerValue = "1"
-	case "off":
-		mfiPowerValue = "0"
-	default:
-		return fmt.Errorf("unsupported power value: %q", userValue)
+	out, err := session.CombinedOutput(shellCommand)
+	if err != nil {
+		return fmt.Errorf("failed to change power value to %q for outlet id %d - %w - output: %q",
+			userValue, *outletID, err, out)
 	}
 
-	out, err := session.CombinedOutput("echo " + mfiPowerValue + "  > /proc/power/output" + strconv.Itoa(*outletID))
-	if err != nil {
-		return fmt.Errorf("failed to change power value to %q (%s) for outlet id %d - %w - output: %q",
-			userValue, mfiPowerValue, *outletID, err, out)
+	if userValue == "status" {
+		switch strings.TrimSpace(string(out)) {
+		case "1":
+			os.Stdout.WriteString("on\n")
+		case "0":
+			os.Stdout.WriteString("off\n")
+		default:
+			return fmt.Errorf("unknown power status value: %q", out)
+		}
 	}
 
 	return nil
