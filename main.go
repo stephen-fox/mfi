@@ -246,21 +246,31 @@ func mainWithError() error {
 	}
 	defer session.Close()
 
-	out, err := session.CombinedOutput(shellCommand)
+	previousStatusCommand := "cat /proc/power/output" + strconv.Itoa(*outletID)
+	out, err := session.CombinedOutput(previousStatusCommand + "&&" + shellCommand)
 	if err != nil {
 		return fmt.Errorf("failed to change power value to %q for outlet id %d - %w - output: %q",
 			userValue, *outletID, err, out)
 	}
 
-	if userValue == "status" {
-		switch strings.TrimSpace(string(out)) {
-		case "1":
-			os.Stdout.WriteString("on\n")
-		case "0":
-			os.Stdout.WriteString("off\n")
-		default:
-			return fmt.Errorf("unknown power status value: %q", out)
-		}
+	var outletStatus string
+	previousStatus := strings.Split(strings.TrimSpace(string(out)), "\n")
+	switch previousStatus[0] {
+	case "1":
+		outletStatus = "on"
+	case "0":
+		outletStatus = "off"
+	default:
+		return fmt.Errorf("unknown power status value: %q", out)
+	}
+
+	switch userValue {
+	case "on":
+		os.Stdout.WriteString(outletStatus + " -> on\n")
+	case "off":
+		os.Stdout.WriteString(outletStatus + " -> off\n")
+	case "status":
+		os.Stdout.WriteString(outletStatus + "\n")
 	}
 
 	return nil
